@@ -1,0 +1,15 @@
+{
+  "name": "abraxas-benchmark",
+  "version": "0.0.0",
+  "description": "abraxas-benchmark",
+  "main": "app.js",
+  "author": {
+    "name": "Alex",
+    "email": ""
+  },
+  "dependencies": {
+    "benchmark": "^2.1.0",
+    "bluebird": "^3.3.5",
+    "summary-statistics": "^1.0.0"
+  }
+}
