@@ -7,22 +7,29 @@ var tube: string = 'test_tube'
 
 ab.Server.listen()
 
-var client = ab.Client.connect({maxJobs: 2, defaultEncoding: 'utf8'})
+var client = ab.Client.connect({maxJobs: 10, defaultEncoding: 'utf8'})
 client.registerWorker(tube, (job) => {
-	job.end(job.payload.toUpperCase())
+	setTimeout(() => job.end(job.payload.toUpperCase()), 100)
 })
+
+function pushJobs() {
+		var jobs = []
+		for (var i = 0; i < 50; i++) jobs.push(client.submitJob(tube, 'abc'))
+		return Promise.all(jobs)
+}
 
 var bench = new Benchmark('test abraxas', {
 	'defer': true,
-	'fn': function(deferred) {
-		var jobs = []
-		for (var i = 0; i < 100; i++) jobs.push(client.submitJob(tube, 'abc'))
-		Promise.all(jobs).then(() => { deferred.resolve() })
-	}
+	'maxTime' : 60,
+	'minRuns' : 20,
+	'initCount' : 3,
+	'fn': (deferred) => pushJobs().then(() => deferred.resolve())
 })
-.on('cycle', function(event) { console.log(String(event.target)) })
+.on('cycle', function(event) { process.stdout.write('\r' + String(event.target)) + "            " })
 .on('complete', function(event) {
 	var summary = sumStats(bench.stats.sample)
-	console.log(summary) 
+	console.log('\n')
+	console.log("%s,%s,%s", summary.median.toFixed(3), (summary.median - summary.q1).toPrecision(2), (summary.q3 - summary.median).toPrecision(2))
 })
-.run({async: false})
+
+pushJobs().then(() => pushJobs().then(() => bench.run({async: false})))
