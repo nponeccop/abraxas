@@ -1,4 +1,4 @@
-﻿var ab = require('../../index.js')
+﻿var ab = require('../index.js')
 var Promise = require('bluebird')
 var Benchmark = require('benchmark')
 var sumStats = require('summary-statistics')
