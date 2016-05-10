@@ -7,7 +7,7 @@ var WorkerTask = require('./task-worker');
 var ClientTask = require('./task-client');
 var emptyFunction = require('emptyfunction');
 
-exports.__construct = function (init) {
+exports.__construct = function (init) {	
     this._workers = {};
     this._workersCount = 0;
 
@@ -213,7 +213,7 @@ Worker.dispatchWorker = function (job,socket) {
 
         task.writer.once('end', function () {
             self.endWork(jobid);
-			if (socket.connected) {
+            if (socket.connected) {
                 socket.workComplete(jobid,task.lastChunk);
             }            
         });
@@ -230,7 +230,7 @@ Worker.dispatchWorker = function (job,socket) {
 
         task.writer.once('end', function () {
             self.endWork(jobid);
-			if (socket.connected) {
+            if (socket.connected) {
                 if (task.lastChunk) addToBuffer(task.lastChunk);
                 socket.workComplete(jobid,buffer);
             }            
