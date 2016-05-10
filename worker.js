@@ -7,7 +7,7 @@ var WorkerTask = require('./task-worker');
 var ClientTask = require('./task-client');
 var emptyFunction = require('emptyfunction');
 
-exports.__construct = function (init) {	
+exports.__construct = function (init) {
     this._workers = {};
     this._workersCount = 0;
 
