@@ -24,7 +24,7 @@ exports.__construct = function (init) {
     this.on('connect', function (self, conn) {
         conn.socket.handleNoJob(function(data) {
             self._grabbingJob --;
-            conn.socket.sleep();
+            if (self._grabbingJob == 0) conn.socket.sleep();
         });
 
         conn.socket.handleNoOp(function(data) {
