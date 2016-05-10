@@ -212,10 +212,10 @@ Worker.dispatchWorker = function (job,socket) {
         });
 
         task.writer.once('end', function () {
-            if (socket.connected) {
-                socket.workComplete(jobid,task.lastChunk);
-            }
             self.endWork(jobid);
+			if (socket.connected) {
+                socket.workComplete(jobid,task.lastChunk);
+            }            
         });
     }
     else {
@@ -229,11 +229,11 @@ Worker.dispatchWorker = function (job,socket) {
         });
 
         task.writer.once('end', function () {
-            if (socket.connected) {
+            self.endWork(jobid);
+			if (socket.connected) {
                 if (task.lastChunk) addToBuffer(task.lastChunk);
                 socket.workComplete(jobid,buffer);
-            }
-            self.endWork(jobid);
+            }            
         });
     }
     
