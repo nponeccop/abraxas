@@ -1,4 +1,5 @@
 "use strict";
+var assert = require('assert');
 var packet = require('gearman-packet');
 var toBuffer = packet.Emitter.prototype.toBuffer;
 var stream = require('readable-stream');
@@ -8,6 +9,8 @@ var ClientTask = require('./task-client');
 var emptyFunction = require('emptyfunction');
 
 exports.__construct = function (init) {
+    this._queue = [];
+
     this._workers = {};
     this._workersCount = 0;
 
@@ -21,6 +24,11 @@ exports.__construct = function (init) {
     if (!this.options.maxJobs) {
         this.options.maxJobs = 1;
     }
+    
+    if (!this.options.maxQueued) {
+        this.options.maxQueued = 1;
+    }
+
     this.on('connect', function (self, conn) {
         conn.socket.handleNoJob(function(data) {
             self._grabbingJob --;
@@ -29,15 +37,17 @@ exports.__construct = function (init) {
 
         conn.socket.handleNoOp(function(data) {
             conn.socket.wakeup();
-            while (self.options.maxJobs > (self._activeJobsCount+self._grabbingJob)) {
-                self._grabbingJob ++;
+            while ((self._activeJobsCount+self._grabbingJob+self._queue.length) < (self.options.maxJobs+self.options.maxQueued)) {
                 conn.socket.grabJob();
+                self._grabbingJob ++;
             }
         });
         if (! self._workersCount) return;
         conn.socket.handleJobAssign(function(job) {
+            if (self._queue.length == self.options.maxQueued) return;
             self._grabbingJob --;
-            self.dispatchWorker(job,conn.socket);
+            self._queue.push(job);
+            if (self._activeJobsCount < self.options.maxJobs) self.dispatchWorker(conn.socket);
         });
         if (self._clientId) {
             conn.socket.setClientId(self._clientId);
@@ -97,13 +107,11 @@ Worker.askForWork = function () {
 Worker.startWork = function (jobid) {
     this._activeJobs[jobid] = true;
     ++ this._activeJobsCount;
-    this.askForWork();
 }
 
 Worker.endWork = function (jobid) {
     delete this._activeJobs[jobid];
     -- this._activeJobsCount;
-    this.askForWork();
 }
 
 Worker.isRegistered = function (func) {
@@ -147,8 +155,10 @@ Worker.registerWorkerStream = function (func, options, handler) {
         this.keepAlive = setInterval(emptyFunction,86400);
         this.getConnectedServers().forEach(function(conn) {
             conn.socket.handleJobAssign(function(job) {
+                if (self._queue.length == self.options.maxQueued) return;
                 self._grabbingJob --;
-                self.dispatchWorker(job,conn.socket);
+                self._queue.push(job);
+                if (self._activeJobsCount < self.options.maxJobs) self.dispatchWorker(conn.socket);
             });
         });
     }
@@ -189,8 +199,9 @@ Worker.forgetAllWorkers = function () {
     });
 }
 
-Worker.dispatchWorker = function (job,socket) {
+Worker.dispatchWorker = function (socket) {
     var self = this;
+    var job = self._queue.pop();
     var jobid = job.args.job;
     var worker = this._worker(job.args.function);
     if (!worker.handler) throw Error('Assigned job for worker we no longer have');
@@ -214,6 +225,12 @@ Worker.dispatchWorker = function (job,socket) {
         task.writer.once('end', function () {
             self.endWork(jobid);
             if (socket.connected) {
+                if (self._queue.length > 0) {
+                    self.dispatchWorker(socket);
+                    assert(self._activeJobsCount == self.options.maxJobs);
+                }
+                socket.grabJob();
+                self._grabbingJob ++;
                 socket.workComplete(jobid,task.lastChunk);
             }            
         });
@@ -232,6 +249,12 @@ Worker.dispatchWorker = function (job,socket) {
             self.endWork(jobid);
             if (socket.connected) {
                 if (task.lastChunk) addToBuffer(task.lastChunk);
+                if (self._queue.length > 0) {
+                    self.dispatchWorker(socket);
+                    assert(self._activeJobsCount == self.options.maxJobs);
+                }
+                socket.grabJob();
+                self._grabbingJob ++;
                 socket.workComplete(jobid,buffer);
             }            
         });

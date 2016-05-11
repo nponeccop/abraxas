@@ -3,6 +3,7 @@ var Promise = require('bluebird')
 var Benchmark = require('benchmark')
 var sumStats = require('summary-statistics')
 import fs = require('fs')
+import assert = require('assert')
 var tube: string = 'test_tube'
 
 ab.Server.listen()
@@ -24,7 +25,10 @@ function goBench(sz) {
 		'maxTime': 60,
 		'minRuns': 20,
 		'initCount': 3,
-		'fn': (deferred) => pushJobs(sz).then(() => deferred.resolve())
+		'fn': (deferred) => pushJobs(sz).then((results) => {
+			results.forEach(result => assert.equal(result, 'ABC'))
+			deferred.resolve()
+		})
 	})
 		.on('cycle', function (event) { process.stdout.write('\r' + String(event.target)) + "            " })
 		.on('complete', function (event) {
@@ -36,4 +40,3 @@ function goBench(sz) {
 }
 
 pushJobs(150).then(() => pushJobs(150).then(() => goBench(100).run({ async: false })))
-
