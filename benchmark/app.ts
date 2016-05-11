@@ -18,18 +18,14 @@ function createPythonFile(suiteResults, benchmarksOpts) {
 		var v1 = summary.median.toPrecision(3)
 		var v2 = (summary.median - summary.q1).toPrecision(2)
 		var v3 = (summary.q3 - summary.median).toPrecision(2)
-		data += `"${name}":[${v1}/1,${v2}/2,${v3}/3],`
+		data += `${v2},`
 	}
 	
 	var code = `%matplotlib notebook\
 				\n\
 				\nimport pandas as pd\
-				\nimport numpy as np\
-				\nimport matplotlib\
 				\n\
-				\nfrom matplotlib import pyplot as plt\
-				\nimport seaborn as sns\
-				\ndf = pd.DataFrame({${data}})\
+				\ndf = pd.DataFrame({"benchmarks":[${data}]})\
 				\ndf.plot(kind="bar")`
 	fs.writeFile('results.py', code, 'utf8', err => { if (err) throw err; console.log('It\'s saved!') })
 }
