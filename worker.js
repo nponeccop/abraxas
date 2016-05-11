@@ -1,4 +1,5 @@
 "use strict";
+var assert = require('assert');
 var packet = require('gearman-packet');
 var toBuffer = packet.Emitter.prototype.toBuffer;
 var stream = require('readable-stream');
@@ -14,12 +15,16 @@ exports.__construct = function (init) {
     this._activeJobs = {};
     this._activeJobsCount = 0;
 
+    this._queue = [];
     this._grabbingJob = 0;
 
     this._clientId = null;
 
     if (!this.options.maxJobs) {
         this.options.maxJobs = 1;
+    }
+    if (!this.options.maxQueued) {
+        this.options.maxQueued = 1;
     }
     this.on('connect', function (self, conn) {
         conn.socket.handleNoJob(function(data) {
@@ -29,7 +34,7 @@ exports.__construct = function (init) {
 
         conn.socket.handleNoOp(function(data) {
             conn.socket.wakeup();
-            while (self.options.maxJobs > (self._activeJobsCount+self._grabbingJob)) {
+            while ((self.options.maxJobs+self.options.maxQueued) > (self._activeJobsCount+self._grabbingJob+self._queue.length)) {
                 self._grabbingJob ++;
                 conn.socket.grabJob();
             }
@@ -37,7 +42,11 @@ exports.__construct = function (init) {
         if (! self._workersCount) return;
         conn.socket.handleJobAssign(function(job) {
             self._grabbingJob --;
-            self.dispatchWorker(job,conn.socket);
+            assert(self._queue.length < self.options.maxQueued);
+            self._queue.push(job);
+            if (self._activeJobsCount < self.options.maxJobs) {
+                self.dispatchWorker(conn.socket);
+            }
         });
         if (self._clientId) {
             conn.socket.setClientId(self._clientId);
@@ -97,13 +106,11 @@ Worker.askForWork = function () {
 Worker.startWork = function (jobid) {
     this._activeJobs[jobid] = true;
     ++ this._activeJobsCount;
-    this.askForWork();
 }
 
 Worker.endWork = function (jobid) {
     delete this._activeJobs[jobid];
     -- this._activeJobsCount;
-    this.askForWork();
 }
 
 Worker.isRegistered = function (func) {
@@ -148,7 +155,12 @@ Worker.registerWorkerStream = function (func, options, handler) {
         this.getConnectedServers().forEach(function(conn) {
             conn.socket.handleJobAssign(function(job) {
                 self._grabbingJob --;
-                self.dispatchWorker(job,conn.socket);
+                assert(self._queue.length < self.options.maxQueued);
+                self._queue.push(job);
+                if (self._activeJobsCount < self.options.maxJobs)
+                {
+                    self.dispatchWorker(conn.socket);
+                }
             });
         });
     }
@@ -189,8 +201,9 @@ Worker.forgetAllWorkers = function () {
     });
 }
 
-Worker.dispatchWorker = function (job,socket) {
+Worker.dispatchWorker = function (socket) {
     var self = this;
+    var job = self._queue.pop();
     var jobid = job.args.job;
     var worker = this._worker(job.args.function);
     if (!worker.handler) throw Error('Assigned job for worker we no longer have');
@@ -214,6 +227,12 @@ Worker.dispatchWorker = function (job,socket) {
         task.writer.once('end', function () {
             self.endWork(jobid);
             if (socket.connected) {
+                if (self._queue.length > 0) {
+                    self.dispatchWorker(socket);
+                    assert(self._activeJobsCount == self.options.maxJobs);
+                }
+                socket.grabJob();
+                self._grabbingJob ++;
                 socket.workComplete(jobid,task.lastChunk);
             }
         });
@@ -232,6 +251,12 @@ Worker.dispatchWorker = function (job,socket) {
             self.endWork(jobid);
             if (socket.connected) {
                 if (task.lastChunk) addToBuffer(task.lastChunk);
+                if (self._queue.length > 0) {
+                    self.dispatchWorker(socket);
+                    assert(self._activeJobsCount == self.options.maxJobs);
+                }
+                socket.grabJob();
+                self._grabbingJob ++;
                 socket.workComplete(jobid,buffer);
             }
         });
