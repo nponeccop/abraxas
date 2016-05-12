@@ -10,23 +10,27 @@ ab.Server.listen()
 
 function createPythonFile(suiteResults, benchmarksOpts) {
 	var data = '';
+	var yerrTop = '';
+	var yerrBottom = '';
 	for (var i = 0; i < suiteResults.length; i++) {
 		var bench = suiteResults[i];
 		var benchmarkOptions = benchmarksOpts[i];
 		var summary = sumStats(bench.stats.sample.map((x) => x / benchmarkOptions.jobsCount))
-		var name = bench.name
+		
 		var v1 = summary.median.toPrecision(3)
 		var v2 = (summary.median - summary.q1).toPrecision(2)
 		var v3 = (summary.q3 - summary.median).toPrecision(2)
 		data += `${v2},`
+		yerrTop += `${v3},`
+		yerrBottom += `${v1},`
 	}
 	
 	var code = `%matplotlib notebook\
 				\n\
 				\nimport pandas as pd\
 				\n\
-				\ndf = pd.DataFrame({"benchmarks":[${data}]})\
-				\ndf.plot(kind="bar")`
+				\ndf = pd.DataFrame([${data}])\
+				\ndf.plot(kind="bar", yerr=[[[${yerrBottom}],[${yerrTop}]]])`
 	fs.writeFile('results.py', code, 'utf8', err => { if (err) throw err; console.log('It\'s saved!') })
 }
 
