@@ -47,9 +47,7 @@ function getHotClient(benchmarkOptions) {
 		setTimeout(() => job.end(job.payload.toUpperCase()), 100)
 	})
 		
-	return new Promise((resolve) => {
-		pushJobs(benchmarkOptions.jobsCount, client).then(() => resolve(client))        
-    })
+	return pushJobs(benchmarkOptions.jobsCount, client).then(() => client)
 }
 
 function createBench(name, jobsCount, client) {
@@ -58,7 +56,7 @@ function createBench(name, jobsCount, client) {
 		maxTime: 60,
 		minRuns: 20,
 		initCount: 3,
-		fn: (deferred) => pushJobs(jobsCount, client).then((results) => {
+		fn: (deferred) => pushJobs(jobsCount, client).done((results) => {
 			results.forEach(result => assert.equal(result, 'ABC'))
 			deferred.resolve()
 		}),
@@ -66,9 +64,10 @@ function createBench(name, jobsCount, client) {
 	})
 }
 
-function goBench(benchmarkOptions) {
-	return new Promise((resolve) => {
-		getHotClient(benchmarkOptions).then(client => {
+function goBenchmarks(benchmarksOptions) {
+	return Promise.mapSeries(benchmarksOptions, (benchmarkOptions) =>
+		getHotClient(benchmarkOptions)
+		.then(client => new Promise((resolve) => {
 			var bench = createBench(benchmarkOptions.name, benchmarkOptions.jobsCount, client).run({async: false})
 			bench.on('complete', () => {
 				process.stdout.write('\n')
@@ -76,24 +75,10 @@ function goBench(benchmarkOptions) {
 				client.disconnect()
 				resolve(bench)
 			})
-		})
-    })
+		})))
+	.done(results => createPythonFile(results, benchmarksOptions))
 }
 
-function goBenchmarks(benchmarksOptions) {	
-	var results = []
-	return new Promise(resolve => {
-		goBench(benchmarksOptions[0]).then(result0 => {
-			results.push(result0)
-			goBench(benchmarksOptions[1]).then(result1 => {
-				results.push(result1)
-				goBench(benchmarksOptions[2]).then(result2 => {
-					results.push(result2)
-					resolve(results)
-				})
-			})
-		})
-	})	
 function overrideWith(customization)
 {
 	var overriddenOptions = _.extend(_.clone(defaultOptions), customization)
@@ -132,4 +117,4 @@ var benchmarksOptions =
 	, { abraxasOptions: { maxQueued: 100 } }
 	].map(overrideWith)
 
-goBenchmarks(benchmarksOptions).then(results => createPythonFile(results, benchmarksOptions))
+goBenchmarks(benchmarksOptions)
