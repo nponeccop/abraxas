@@ -5,6 +5,7 @@ var sumStats = require('summary-statistics')
 import fs = require('fs')
 import assert = require('assert')
 var tube: string = 'test_tube'
+var _ = require('underscore')
 
 ab.Server.listen()
 
@@ -93,11 +94,42 @@ function goBenchmarks(benchmarksOptions) {
 			})
 		})
 	})	
+function overrideWith(customization)
+{
+	var overriddenOptions = _.extend(_.clone(defaultOptions), customization)
+	overriddenOptions.abraxasOptions = _.extend(_.clone(defaultOptions.abraxasOptions), customization.abraxasOptions)
+	for (var p in customization)
+	{
+		if (p != 'abraxasOptions')
+		{
+			overriddenOptions.name += ` ${p}=${customization[p]}`
+		}
+	}
+	if ('abraxasOptions' in customization)
+	{
+		for (p in customization.abraxasOptions)
+		{
+			overriddenOptions.name += ` ${p}=${customization.abraxasOptions[p]}`
+		}
+	}
+
+	return overriddenOptions
 }
 
-var benchmarksOptions = [
-	{ name: 'abraxas jobs=100, queue=10, active=10', jobsCount: 100, abraxasOptions: { maxQueued: 10, maxJobs: 10, defaultEncoding: 'utf8' } },
-	{ name: 'abraxas jobs=100, queue=20, active=10', jobsCount: 100, abraxasOptions: { maxQueued: 20, maxJobs: 10, defaultEncoding: 'utf8' } },
-	{ name: 'abraxas jobs=100, queue=40, active=10', jobsCount: 100, abraxasOptions: { maxQueued: 40, maxJobs: 10, defaultEncoding: 'utf8' } }]
+var defaultOptions =
+	{ name: 'abraxas'
+	, jobsCount: 10
+	, abraxasOptions:
+		{ maxQueued: 10
+		, maxJobs: 1000
+		, defaultEncoding: 'utf8'
+		}
+}
+
+var benchmarksOptions =
+	[ { abraxasOptions: { maxQueued: 1 } }
+	, { abraxasOptions: { maxQueued: 50 } }
+	, { abraxasOptions: { maxQueued: 100 } }
+	].map(overrideWith)
 
 goBenchmarks(benchmarksOptions).then(results => createPythonFile(results, benchmarksOptions))
