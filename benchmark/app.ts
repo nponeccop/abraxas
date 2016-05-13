@@ -20,9 +20,9 @@ function createPythonFile(suiteResults, benchmarksOpts) {
 		var v1 = summary.median.toPrecision(3)
 		var v2 = (summary.median - summary.q1).toPrecision(2)
 		var v3 = (summary.q3 - summary.median).toPrecision(2)
-		data += `${v2},`
-		yerrTop += `${v3},`
-		yerrBottom += `${v1},`
+		data += `${v1},`
+		yerrTop += `${v2},`
+		yerrBottom += `${v3},`
 	}
 	
 	var code = `%matplotlib notebook\
